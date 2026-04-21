@@ -101,23 +101,23 @@ jobs:
       - name: Package (unix)
         if: runner.os != 'Windows'
         run: |
-          STAGE=staging/google-sheets
+          STAGE=staging
           mkdir -p "$STAGE/ui/dist"
           cp target/${{ matrix.target }}/release/google-sheets-plugin${{ matrix.binary-suffix }} "$STAGE/"
           cp manifest.json "$STAGE/"
           cp ui/dist/*.js "$STAGE/ui/dist/"
-          (cd staging && zip -r ../google-sheets-plugin-${{ matrix.platform-label }}.zip google-sheets)
+          (cd "$STAGE" && zip -r ../google-sheets-plugin-${{ matrix.platform-label }}.zip .)
 
       - name: Package (windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $stage = "staging\google-sheets"
+          $stage = "staging"
           New-Item -ItemType Directory -Force -Path "$stage\ui\dist" | Out-Null
           Copy-Item "target\${{ matrix.target }}\release\google-sheets-plugin${{ matrix.binary-suffix }}" $stage
           Copy-Item "manifest.json" $stage
           Copy-Item "ui\dist\*.js" "$stage\ui\dist\"
-          Compress-Archive -Path $stage -DestinationPath "google-sheets-plugin-${{ matrix.platform-label }}.zip"
+          Compress-Archive -Path "$stage\*" -DestinationPath "google-sheets-plugin-${{ matrix.platform-label }}.zip"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
