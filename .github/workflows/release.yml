@@ -9,8 +9,37 @@ permissions:
   contents: write
 
 jobs:
+  ui:
+    name: ui-bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install UI deps
+        run: pnpm --dir ui install --frozen-lockfile
+
+      - name: Build UI
+        run: pnpm --dir ui build
+
+      - name: Upload UI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist/
+
   build:
     name: ${{ matrix.platform-label }}
+    needs: ui
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -63,17 +92,20 @@ jobs:
         if: ${{ !matrix.cross }}
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Download UI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist/
+
       - name: Package (unix)
         if: runner.os != 'Windows'
         run: |
           STAGE=staging/google-sheets
-          mkdir -p "$STAGE"
+          mkdir -p "$STAGE/ui/dist"
           cp target/${{ matrix.target }}/release/google-sheets-plugin${{ matrix.binary-suffix }} "$STAGE/"
           cp manifest.json "$STAGE/"
-          if [ -f ui/dist/index.js ]; then
-            mkdir -p "$STAGE/ui/dist"
-            cp ui/dist/index.js "$STAGE/ui/dist/"
-          fi
+          cp ui/dist/*.js "$STAGE/ui/dist/"
           (cd staging && zip -r ../google-sheets-plugin-${{ matrix.platform-label }}.zip google-sheets)
 
       - name: Package (windows)
@@ -81,13 +113,10 @@ jobs:
         shell: pwsh
         run: |
           $stage = "staging\google-sheets"
-          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage\ui\dist" | Out-Null
           Copy-Item "target\${{ matrix.target }}\release\google-sheets-plugin${{ matrix.binary-suffix }}" $stage
           Copy-Item "manifest.json" $stage
-          if (Test-Path "ui\dist\index.js") {
-            New-Item -ItemType Directory -Force -Path "$stage\ui\dist" | Out-Null
-            Copy-Item "ui\dist\index.js" "$stage\ui\dist"
-          }
+          Copy-Item "ui\dist\*.js" "$stage\ui\dist\"
           Compress-Archive -Path $stage -DestinationPath "google-sheets-plugin-${{ matrix.platform-label }}.zip"
 
       - name: Upload release asset
