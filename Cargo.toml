@@ -1,0 +1,24 @@
+[package]
+name = "google-sheets-plugin"
+version = "1.0.0"
+edition = "2021"
+description = "Query Google Sheets spreadsheets as SQL tables. Each tab becomes a table, the first row defines column headers."
+license = "Apache-2.0"
+publish = false
+
+[[bin]]
+name = "google-sheets-plugin"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+regex = "1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = "symbols"

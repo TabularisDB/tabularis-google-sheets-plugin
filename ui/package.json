@@ -1,0 +1,24 @@
+{
+  "name": "google-sheets-ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "UI extension bundles for the Google Sheets Tabularis plugin.",
+  "scripts": {
+    "build": "pnpm run build:auth && pnpm run build:db-field",
+    "build:auth": "vite build --config vite.auth.config.ts",
+    "build:db-field": "vite build --config vite.db-field.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tabularis/plugin-api": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.0"
+  }
+}

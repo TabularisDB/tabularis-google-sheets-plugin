@@ -1,0 +1,94 @@
+{
+  "$schema": "https://tabularis.dev/schemas/plugin-manifest.json",
+  "id": "google-sheets",
+  "name": "Google Sheets",
+  "version": "1.0.0",
+  "description": "Query Google Sheets spreadsheets as SQL tables. Each tab becomes a table, the first row defines column headers.",
+  "default_port": null,
+  "default_username": "",
+  "executable": "google-sheets-plugin",
+  "capabilities": {
+    "schemas": false,
+    "views": false,
+    "routines": false,
+    "file_based": false,
+    "folder_based": false,
+    "no_connection_required": true,
+    "identifier_quote": "\"",
+    "alter_primary_key": false,
+    "alter_column": false,
+    "create_foreign_keys": false,
+    "manage_tables": false,
+    "readonly": false
+  },
+  "settings": [
+    {
+      "key": "client_id",
+      "label": "OAuth Client ID",
+      "type": "string",
+      "required": false,
+      "description": "Auto-managed by the OAuth flow. Use the 'Connect with Google' button below."
+    },
+    {
+      "key": "client_secret",
+      "label": "OAuth Client Secret",
+      "type": "string",
+      "required": false,
+      "description": "Auto-managed by the OAuth flow."
+    },
+    {
+      "key": "access_token",
+      "label": "Access Token",
+      "type": "string",
+      "required": false,
+      "description": "Auto-managed. Do not edit manually."
+    },
+    {
+      "key": "refresh_token",
+      "label": "Refresh Token",
+      "type": "string",
+      "required": false,
+      "description": "Auto-managed. Do not edit manually."
+    },
+    {
+      "key": "token_expiry",
+      "label": "Token Expiry (unix timestamp)",
+      "type": "number",
+      "required": false,
+      "description": "Auto-managed. Do not edit manually."
+    }
+  ],
+  "ui_extensions": [
+    {
+      "slot": "settings.plugin.before_settings",
+      "module": "ui/dist/google-auth.js",
+      "order": 10
+    },
+    {
+      "slot": "connection-modal.connection_content",
+      "module": "ui/dist/google-sheets-db-field.js",
+      "order": 10,
+      "driver": "google-sheets"
+    }
+  ],
+  "data_types": [
+    {
+      "name": "TEXT",
+      "category": "string",
+      "requires_length": false,
+      "requires_precision": false
+    },
+    {
+      "name": "INTEGER",
+      "category": "numeric",
+      "requires_length": false,
+      "requires_precision": false
+    },
+    {
+      "name": "REAL",
+      "category": "numeric",
+      "requires_length": false,
+      "requires_precision": false
+    }
+  ]
+}
