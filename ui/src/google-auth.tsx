@@ -176,7 +176,7 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
       : "Step 2 — Authorize and paste the code";
 
   return (
-    <div style={{ minWidth: "460px" }}>
+    <div style={{ minWidth: "460px", padding: "16px", boxSizing: "border-box" }}>
       <div style={{ marginBottom: "4px" }}>
         <div
           style={{
