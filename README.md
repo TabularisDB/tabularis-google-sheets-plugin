@@ -9,7 +9,7 @@
 ![](https://img.shields.io/github/release/debba/tabularis-google-sheets-plugin.svg?style=flat)
 ![](https://img.shields.io/github/downloads/debba/tabularis-google-sheets-plugin/total.svg?style=flat)
 ![Build & Release](https://github.com/debba/tabularis-google-sheets-plugin/workflows/Release/badge.svg)
-[![Discord](https://img.shields.io/discord/1470772941296894128?color=5865F2&logo=discord&logoColor=white)](https://discord.gg/YrZPHAwMSG)
+[![Discord](https://img.shields.io/discord/1470772941296894128?color=5865F2&logo=discord&logoColor=white)](https://discord.com/invite/K2hmhfHRSt)
 
 </p>
 
@@ -19,7 +19,7 @@ This plugin turns **any Google spreadsheet into a queryable database**. Each tab
 
 **No external dependencies** — ships as a single compiled Rust binary that talks directly to the Sheets REST API.
 
-**Discord** - [Join our discord server](https://discord.gg/YrZPHAwMSG) and chat with the maintainers.
+**Discord** - [Join our discord server](https://discord.com/invite/K2hmhfHRSt) and chat with the maintainers.
 
 ## Table of Contents
 
