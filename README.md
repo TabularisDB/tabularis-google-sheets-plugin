@@ -58,7 +58,7 @@ Open **Settings → Available Plugins** in Tabularis and install **Google Sheets
 
 1. Download the latest release archive for your platform from the [Releases page](https://github.com/TabularisDB/tabularis-google-sheets-plugin/releases).
 2. Extract the archive.
-3. Copy `google-sheets-plugin` (or `google-sheets-plugin.exe` on Windows), `manifest.json`, and the `ui/dist/` folder into the Tabularis plugins directory:
+3. Copy `google-sheets-plugin` (or `google-sheets-plugin.exe` on Windows), `.tabularium`, and the `ui/dist/` folder into the Tabularis plugins directory:
 
 | OS | Plugins Directory |
 |---|---|

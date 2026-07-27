@@ -26,7 +26,7 @@ test:
 dev-install: build ui-build
     mkdir -p ~/.local/share/tabularis/plugins/google-sheets/ui/dist
     cp target/debug/google-sheets-plugin ~/.local/share/tabularis/plugins/google-sheets/
-    cp manifest.json ~/.local/share/tabularis/plugins/google-sheets/
+    cp .tabularium ~/.local/share/tabularis/plugins/google-sheets/
     cp ui/dist/*.js ~/.local/share/tabularis/plugins/google-sheets/ui/dist/
     @echo "Installed to ~/.local/share/tabularis/plugins/google-sheets"
     @echo "Restart Tabularis (or toggle the plugin in Settings) to pick up changes."
@@ -34,7 +34,7 @@ dev-install: build ui-build
 release-install: release ui-build
     mkdir -p ~/.local/share/tabularis/plugins/google-sheets/ui/dist
     cp target/release/google-sheets-plugin ~/.local/share/tabularis/plugins/google-sheets/
-    cp manifest.json ~/.local/share/tabularis/plugins/google-sheets/
+    cp .tabularium ~/.local/share/tabularis/plugins/google-sheets/
     cp ui/dist/*.js ~/.local/share/tabularis/plugins/google-sheets/ui/dist/
     @echo "Installed release build to ~/.local/share/tabularis/plugins/google-sheets"
 
