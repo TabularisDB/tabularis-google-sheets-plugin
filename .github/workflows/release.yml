@@ -94,7 +94,7 @@ pnpm run build
           if [ -d assets ]; then
             cp -r assets "$STAGE/"
           fi
-          if [ -f ui/dist/index.js ]; then
+if [ -f ui/dist/google-auth.js ] || [ -f ui/dist/google-sheets-db-field.js ]; then
             mkdir -p "$STAGE/ui/dist"
             cp ui/dist/index.js "$STAGE/ui/dist/"
           fi
