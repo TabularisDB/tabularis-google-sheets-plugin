@@ -69,7 +69,7 @@ jobs:
         shell: bash
         working-directory: ui
         run: |
-          npm install --no-audit --no-fund
+pnpm install --frozen-lockfile
           npm run build
 
       - name: Install cross (linux-arm64 only)
