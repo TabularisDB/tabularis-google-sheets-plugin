@@ -70,7 +70,7 @@ jobs:
         working-directory: ui
         run: |
 pnpm install --frozen-lockfile
-          npm run build
+pnpm run build
 
       - name: Install cross (linux-arm64 only)
         if: matrix.cross
