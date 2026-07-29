@@ -111,7 +111,7 @@ cp ui/dist/*.js "$STAGE/ui/dist/"
           if (Test-Path "assets") {
             Copy-Item -Recurse "assets" "$stage\assets"
           }
-          if (Test-Path "ui\dist\index.js") {
+if (Test-Path "ui\dist\google-auth.js") -or (Test-Path "ui\dist\google-sheets-db-field.js") {
             New-Item -ItemType Directory -Force -Path "$stage\ui\dist" | Out-Null
             Copy-Item "ui\dist\index.js" "$stage\ui\dist"
           }
