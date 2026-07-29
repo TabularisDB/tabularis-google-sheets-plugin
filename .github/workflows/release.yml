@@ -96,7 +96,7 @@ pnpm run build
           fi
 if [ -f ui/dist/google-auth.js ] || [ -f ui/dist/google-sheets-db-field.js ]; then
             mkdir -p "$STAGE/ui/dist"
-            cp ui/dist/index.js "$STAGE/ui/dist/"
+cp ui/dist/*.js "$STAGE/ui/dist/"
           fi
           (cd "$STAGE" && zip -r ../google-sheets-plugin-${{ matrix.platform-label }}.zip .)
 
