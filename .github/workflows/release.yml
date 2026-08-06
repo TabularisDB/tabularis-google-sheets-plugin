@@ -5,9 +5,102 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
+  # ── 1. Prepare: update .tabularium version & generate CHANGELOG ──
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Update .tabularium version
+        run: |
+          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' .tabularium > manifest.tmp.json
+          mv manifest.tmp.json .tabularium
+
+      - name: Generate CHANGELOG.md
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ github.ref_name }}
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Commit version bump & changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .tabularium CHANGELOG.md
+          git commit -m "chore(release): ${{ github.ref_name }}" || true
+          git push origin HEAD:master
+
+      - name: Upload manifest as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest
+          path: .tabularium
+          include-hidden-files: true
+
+      - name: Generate release notes (latest version only)
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ github.ref_name }} --latest --strip header
+        env:
+          OUTPUT: RELEASE_NOTES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Upload release notes as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+
+  # ── 2. UI bundle ───────────────────────────────────────────────────
+  ui:
+    name: ui-bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install UI deps
+        run: pnpm --dir ui install --frozen-lockfile
+
+      - name: Build UI
+        run: pnpm --dir ui build
+
+      - name: Upload UI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist/
+
+  # ── 3. Build matrix ────────────────────────────────────────────────
   build:
     name: ${{ matrix.platform-label }}
+    needs: [prepare, ui]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -41,36 +134,17 @@ jobs:
             binary-suffix: ".exe"
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
+
+      - name: Download manifest artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: manifest
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-
-      - name: Check for UI extension
-        id: ui
-        shell: bash
-        run: |
-          if [ -f ui/package.json ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup Node
-        if: steps.ui.outputs.present == 'true'
-        uses: actions/setup-node@v5
-        with:
-          node-version: "20"
-
-      - name: Build UI
-        if: steps.ui.outputs.present == 'true'
-        shell: bash
-        working-directory: ui
-        run: |
-pnpm install --frozen-lockfile
-pnpm run build
 
       - name: Install cross (linux-arm64 only)
         if: matrix.cross
@@ -84,20 +158,20 @@ pnpm run build
         if: ${{ !matrix.cross }}
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Download UI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist/
+
       - name: Package (unix)
         if: runner.os != 'Windows'
         run: |
           STAGE=staging
-          mkdir -p "$STAGE"
+          mkdir -p "$STAGE/ui/dist"
           cp target/${{ matrix.target }}/release/google-sheets-plugin${{ matrix.binary-suffix }} "$STAGE/"
           cp .tabularium "$STAGE/"
-          if [ -d assets ]; then
-            cp -r assets "$STAGE/"
-          fi
-if [ -f ui/dist/google-auth.js ] || [ -f ui/dist/google-sheets-db-field.js ]; then
-            mkdir -p "$STAGE/ui/dist"
-cp ui/dist/*.js "$STAGE/ui/dist/"
-          fi
+          cp ui/dist/*.js "$STAGE/ui/dist/"
           (cd "$STAGE" && zip -r ../google-sheets-plugin-${{ matrix.platform-label }}.zip .)
 
       - name: Package (windows)
@@ -105,46 +179,40 @@ cp ui/dist/*.js "$STAGE/ui/dist/"
         shell: pwsh
         run: |
           $stage = "staging"
-          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage\ui\dist" | Out-Null
           Copy-Item "target\${{ matrix.target }}\release\google-sheets-plugin${{ matrix.binary-suffix }}" $stage
           Copy-Item ".tabularium" $stage
-          if (Test-Path "assets") {
-            Copy-Item -Recurse "assets" "$stage\assets"
-          }
-if (Test-Path "ui\dist\google-auth.js") -or (Test-Path "ui\dist\google-sheets-db-field.js") {
-            New-Item -ItemType Directory -Force -Path "$stage\ui\dist" | Out-Null
-Copy-Item "ui\dist\*.js" "$stage\ui\dist\"
-          }
+          Copy-Item "ui\dist\*.js" "$stage\ui\dist\"
           Compress-Archive -Path "$stage\*" -DestinationPath "google-sheets-plugin-${{ matrix.platform-label }}.zip"
 
-      - name: Stash artifact
-        uses: actions/upload-artifact@v5
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: google-sheets-plugin-${{ matrix.platform-label }}
           path: google-sheets-plugin-${{ matrix.platform-label }}.zip
-          retention-days: 1
 
+  # ── 4. Create GitHub Release ───────────────────────────────────────
   release:
-    name: Publish GitHub release
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout (for the .tabularium manifest asset)
-        uses: actions/checkout@v5
-
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v5
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - name: Publish release
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          # .tabularium ships as a standalone asset: the registry resolves the
-          # manifest from release assets, not the git ref.
+          name: ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
           files: |
             artifacts/*.zip
-            .tabularium
+            artifacts/.tabularium
+          generate_release_notes: false
