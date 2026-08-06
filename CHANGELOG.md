@@ -2,7 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.3.0] - 2026-08-06
+
+### Bug Fixes
+
+- Conform the manifest to the registry schema, add icon and release notes by @debba
+
+### Features
+
+- Migrate to the .tabularium manifest for the Tabularium registry by @NewtTheWolf
 
 ### Miscellaneous
 
