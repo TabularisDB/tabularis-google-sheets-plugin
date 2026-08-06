@@ -1,11 +1,13 @@
 {
-  "$schema": "https://tabularis.dev/schemas/plugin-manifest.json",
-  "id": "google-sheets",
-  "name": "Google Sheets",
+  "name": "google-sheets",
   "version": "0.2.0",
+  "kind": "driver",
   "description": "Query Google Sheets spreadsheets as SQL tables. Each tab becomes a table, the first row defines column headers.",
-  "default_port": null,
-  "default_username": "",
+  "icon": "https://raw.githubusercontent.com/TabularisDB/tabularis-google-sheets-plugin/main/google-sheets-logo.png",
+  "engine": "google-sheets",
+  "paradigms": [
+    "sql"
+  ],
   "executable": "google-sheets-plugin",
   "capabilities": {
     "schemas": false,

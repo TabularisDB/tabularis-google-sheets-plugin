@@ -9,6 +9,66 @@ permissions:
   contents: write
 
 jobs:
+  # ── 1. Prepare: update .tabularium version & generate CHANGELOG ──
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Update .tabularium version
+        run: |
+          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' .tabularium > manifest.tmp.json
+          mv manifest.tmp.json .tabularium
+
+      - name: Generate CHANGELOG.md
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ github.ref_name }}
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Commit version bump & changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .tabularium CHANGELOG.md
+          git commit -m "chore(release): ${{ github.ref_name }}" || true
+          git push origin HEAD:master
+
+      - name: Upload manifest as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest
+          path: .tabularium
+          include-hidden-files: true
+
+      - name: Generate release notes (latest version only)
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ github.ref_name }} --latest --strip header
+        env:
+          OUTPUT: RELEASE_NOTES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Upload release notes as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+
+  # ── 2. UI bundle ───────────────────────────────────────────────────
   ui:
     name: ui-bundle
     runs-on: ubuntu-latest
@@ -37,9 +97,10 @@ jobs:
           name: ui-dist
           path: ui/dist/
 
+  # ── 3. Build matrix ────────────────────────────────────────────────
   build:
     name: ${{ matrix.platform-label }}
-    needs: ui
+    needs: [prepare, ui]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -75,6 +136,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download manifest artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: manifest
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -104,7 +170,7 @@ jobs:
           STAGE=staging
           mkdir -p "$STAGE/ui/dist"
           cp target/${{ matrix.target }}/release/google-sheets-plugin${{ matrix.binary-suffix }} "$STAGE/"
-          cp manifest.json "$STAGE/"
+          cp .tabularium "$STAGE/"
           cp ui/dist/*.js "$STAGE/ui/dist/"
           (cd "$STAGE" && zip -r ../google-sheets-plugin-${{ matrix.platform-label }}.zip .)
 
@@ -115,11 +181,38 @@ jobs:
           $stage = "staging"
           New-Item -ItemType Directory -Force -Path "$stage\ui\dist" | Out-Null
           Copy-Item "target\${{ matrix.target }}\release\google-sheets-plugin${{ matrix.binary-suffix }}" $stage
-          Copy-Item "manifest.json" $stage
+          Copy-Item ".tabularium" $stage
           Copy-Item "ui\dist\*.js" "$stage\ui\dist\"
           Compress-Archive -Path "$stage\*" -DestinationPath "google-sheets-plugin-${{ matrix.platform-label }}.zip"
 
-      - name: Upload release asset
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-sheets-plugin-${{ matrix.platform-label }}
+          path: google-sheets-plugin-${{ matrix.platform-label }}.zip
+
+  # ── 4. Create GitHub Release ───────────────────────────────────────
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: google-sheets-plugin-${{ matrix.platform-label }}.zip
+          name: ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            artifacts/*.zip
+            artifacts/.tabularium
+          generate_release_notes: false
