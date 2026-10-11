@@ -1,5 +1,6 @@
 {
-  "name": "google-sheets",
+  "id": "google-sheets",
+  "name": "Google Sheets",
   "version": "0.3.0",
   "kind": "driver",
   "description": "Query Google Sheets spreadsheets as SQL tables. Each tab becomes a table, the first row defines column headers.",
