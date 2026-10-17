@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - Unreleased
+
+### Bug Fixes
+
+- Route the OAuth authorization-code exchange through the sandbox host API.
+- Wait for plugin settings writes before advancing the OAuth flow.
+
 ## [0.3.0] - 2026-08-06
 
 ### Bug Fixes

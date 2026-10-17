@@ -1,7 +1,8 @@
 {
   "id": "google-sheets",
   "name": "Google Sheets",
-  "version": "0.3.0",
+  "version": "0.3.1",
+  "min_runtime_version": "0.28.0",
   "kind": "driver",
   "description": "Query Google Sheets spreadsheets as SQL tables. Each tab becomes a table, the first row defines column headers.",
   "icon": "https://raw.githubusercontent.com/TabularisDB/tabularis-google-sheets-plugin/main/google-sheets-logo.png",
