@@ -92,6 +92,10 @@ All debug output is written to `stderr` and appears in Tabularis's log viewer â€
 
 The first time you open the plugin settings you'll see a **Connect with Google** button (provided by the bundled UI extension). Clicking it launches the standard Google OAuth consent flow and, on success, stores the client id, client secret, access token and refresh token in the plugin settings.
 
+The UI extension sends the authorization code to Tabularis through
+`exchangeGoogleOAuthToken`; it does not make a network request from the plugin
+frame. This requires a Tabularis host that exposes plugin API 0.3.0 or newer.
+
 From that point on:
 
 - `access_token`, `refresh_token` and `token_expiry` are **auto-managed** â€” don't edit them by hand.
