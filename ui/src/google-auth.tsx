@@ -12,11 +12,11 @@
 
 import {
   defineSlot,
-  getHost,
   openUrl,
   usePluginModal,
   usePluginSetting,
 } from "@tabularis/plugin-api";
+import * as pluginApi from "@tabularis/plugin-api";
 import { useState } from "react";
 
 import { PLUGIN_ID, S } from "./styles";
@@ -63,26 +63,23 @@ interface GoogleOAuthTokenRequest {
   redirect_uri: string;
 }
 
-type GoogleOAuthHost = ReturnType<typeof getHost> & {
-  exchangeGoogleOAuthToken: (
-    request: GoogleOAuthTokenRequest,
-  ) => Promise<TokenResponse>;
-};
+// The guest maps this module to its restricted API object. The local type
+// keeps this companion buildable until plugin-api 0.4.0 is published.
+const exchangeGoogleOAuthToken = (pluginApi as typeof pluginApi & {
+  exchangeGoogleOAuthToken: (request: GoogleOAuthTokenRequest) => Promise<TokenResponse>;
+}).exchangeGoogleOAuthToken;
 
 async function exchangeCode(
   clientId: string,
   clientSecret: string,
   code: string,
 ): Promise<TokenResponse> {
-  // The host added this method in API 0.3.0. Keep the plugin buildable against
-  // the latest published npm API until that version is released.
-  const host = getHost() as GoogleOAuthHost;
-  if (typeof host.exchangeGoogleOAuthToken !== "function") {
+  if (typeof exchangeGoogleOAuthToken !== "function") {
     throw new Error(
-      "This Google Sheets OAuth flow requires a Tabularis host with plugin API 0.3.0 or newer",
+      "Update Tabularis to 0.29.0 or newer to use the Google Sheets OAuth flow",
     );
   }
-  return host.exchangeGoogleOAuthToken({
+  return exchangeGoogleOAuthToken({
     grant_type: "authorization_code",
     code,
     client_id: clientId,
