@@ -16,12 +16,12 @@ import {
   usePluginModal,
   usePluginSetting,
 } from "@tabularis/plugin-api";
+import * as pluginApi from "@tabularis/plugin-api";
 import { useState } from "react";
 
 import { PLUGIN_ID, S } from "./styles";
 
 const SCOPE = "https://www.googleapis.com/auth/spreadsheets";
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const REDIRECT_URI = "http://127.0.0.1";
 
 function buildAuthUrl(clientId: string): string {
@@ -55,38 +55,37 @@ interface TokenResponse {
   expires_in?: number;
 }
 
+interface GoogleOAuthTokenRequest {
+  grant_type: "authorization_code";
+  code: string;
+  client_id: string;
+  client_secret: string;
+  redirect_uri: string;
+}
+
+// The guest maps this module to its restricted API object. The local type
+// keeps this companion buildable until plugin-api 0.4.0 is published.
+const exchangeGoogleOAuthToken = (pluginApi as typeof pluginApi & {
+  exchangeGoogleOAuthToken: (request: GoogleOAuthTokenRequest) => Promise<TokenResponse>;
+}).exchangeGoogleOAuthToken;
+
 async function exchangeCode(
   clientId: string,
   clientSecret: string,
   code: string,
 ): Promise<TokenResponse> {
-  const body = new URLSearchParams({
+  if (typeof exchangeGoogleOAuthToken !== "function") {
+    throw new Error(
+      "Update Tabularis to 0.29.0 or newer to use the Google Sheets OAuth flow",
+    );
+  }
+  return exchangeGoogleOAuthToken({
+    grant_type: "authorization_code",
     code,
     client_id: clientId,
     client_secret: clientSecret,
     redirect_uri: REDIRECT_URI,
-    grant_type: "authorization_code",
   });
-  const resp = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  });
-  if (!resp.ok) {
-    const text = await resp.text();
-    let msg = "Token exchange failed";
-    try {
-      const json = JSON.parse(text) as {
-        error_description?: string;
-        error?: string;
-      };
-      msg = json.error_description || json.error || msg;
-    } catch {
-      msg = text || msg;
-    }
-    throw new Error(msg);
-  }
-  return resp.json() as Promise<TokenResponse>;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,12 +94,11 @@ async function exchangeCode(
 
 interface WizardProps {
   getSetting: <T = unknown>(key: string, defaultValue?: T) => T;
-  setSetting: (key: string, value: unknown) => void;
-  setSettings: (updates: Record<string, unknown>) => void;
+  setSettings: (updates: Record<string, unknown>) => Promise<void> | void;
   onClose: () => void;
 }
 
-function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardProps) {
+function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
   const [clientId, setClientId] = useState<string>(
     (getSetting<string>("client_id", "") as string) || "",
   );
@@ -117,13 +115,22 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
   const canOpenUrl =
     clientId.trim().length > 0 && clientSecret.trim().length > 0;
 
-  function handleOpenBrowser() {
-    const url = buildAuthUrl(clientId.trim());
-    setSetting("client_id", clientId.trim());
-    setSetting("client_secret", clientSecret.trim());
-    openUrl(url);
-    setStep("waiting");
+  async function handleOpenBrowser() {
+    setLoading(true);
     setError("");
+    try {
+      const trimmedClientId = clientId.trim();
+      await setSettings({
+        client_id: trimmedClientId,
+        client_secret: clientSecret.trim(),
+      });
+      await openUrl(buildAuthUrl(trimmedClientId));
+      setStep("waiting");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleExchange() {
@@ -146,7 +153,7 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
       if (data.refresh_token) {
         updates.refresh_token = data.refresh_token;
       }
-      setSettings(updates);
+      await setSettings(updates);
       setStep("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -225,13 +232,13 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
             <button
               style={{
                 ...S.btn("primary"),
-                opacity: canOpenUrl ? 1 : 0.4,
-                cursor: canOpenUrl ? "pointer" : "not-allowed",
+                opacity: canOpenUrl && !loading ? 1 : 0.4,
+                cursor: canOpenUrl && !loading ? "pointer" : "not-allowed",
               }}
-              disabled={!canOpenUrl}
+              disabled={!canOpenUrl || loading}
               onClick={handleOpenBrowser}
             >
-              Open Authorization Page →
+              {loading ? "Opening…" : "Open Authorization Page →"}
             </button>
             <button style={S.btn("default")} onClick={onClose}>
               Cancel
@@ -296,7 +303,8 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
 
           <div style={{ marginTop: "12px" }}>
             <button
-              style={{ ...S.btn("default"), fontSize: "11px" }}
+              style={{ ...S.btn("default"), fontSize: "11px", opacity: loading ? 0.6 : 1 }}
+              disabled={loading}
               onClick={handleOpenBrowser}
             >
               Re-open authorization page
@@ -317,7 +325,7 @@ const GoogleSheetsOAuth = defineSlot(
   ({ context }) => {
     if (context.targetPluginId !== PLUGIN_ID) return null;
 
-    const { getSetting, setSetting, setSettings } = usePluginSetting(PLUGIN_ID);
+    const { getSetting, setSettings } = usePluginSetting(PLUGIN_ID);
     const { openModal, closeModal } = usePluginModal();
 
     const refresh = getSetting<string>("refresh_token", "") as string;
@@ -332,7 +340,6 @@ const GoogleSheetsOAuth = defineSlot(
         content: (
           <OAuthWizard
             getSetting={getSetting}
-            setSetting={setSetting}
             setSettings={setSettings}
             onClose={closeModal}
           />
@@ -340,12 +347,16 @@ const GoogleSheetsOAuth = defineSlot(
       });
     }
 
-    function handleDisconnect() {
-      setSettings({
-        access_token: "",
-        refresh_token: "",
-        token_expiry: 0,
-      });
+    async function handleDisconnect() {
+      try {
+        await setSettings({
+          access_token: "",
+          refresh_token: "",
+          token_expiry: 0,
+        });
+      } catch (failure) {
+        console.error("Failed to disconnect Google account", failure);
+      }
     }
 
     return (
