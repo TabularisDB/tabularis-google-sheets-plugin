@@ -53,7 +53,10 @@ pub fn get_add_column_sql(id: Value, _params: &Value) -> Value {
 }
 
 pub fn get_alter_column_sql(id: Value, _params: &Value) -> Value {
-    unsupported(id, "Google Sheets does not support ALTER TABLE MODIFY COLUMN.")
+    unsupported(
+        id,
+        "Google Sheets does not support ALTER TABLE MODIFY COLUMN.",
+    )
 }
 
 pub fn get_create_index_sql(id: Value, _params: &Value) -> Value {

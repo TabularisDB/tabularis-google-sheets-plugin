@@ -78,17 +78,17 @@ fn re_update() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
     R.get_or_init(|| {
         Regex::new(
-            r##"(?is)^UPDATE\s+(?:"([^"]+)"|`([^`]+)`|(\S+))\s+SET\s+(.+?)\s+WHERE\s+(.+)$"##
-        ).unwrap()
+            r##"(?is)^UPDATE\s+(?:"([^"]+)"|`([^`]+)`|(\S+))\s+SET\s+(.+?)\s+WHERE\s+(.+)$"##,
+        )
+        .unwrap()
     })
 }
 
 fn re_delete() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
     R.get_or_init(|| {
-        Regex::new(
-            r##"(?is)^DELETE\s+FROM\s+(?:"([^"]+)"|`([^`]+)`|(\S+))\s+WHERE\s+(.+)$"##
-        ).unwrap()
+        Regex::new(r##"(?is)^DELETE\s+FROM\s+(?:"([^"]+)"|`([^`]+)`|(\S+))\s+WHERE\s+(.+)$"##)
+            .unwrap()
     })
 }
 
@@ -201,17 +201,21 @@ fn eval_condition(cond: &str, row: &HashMap<String, String>) -> bool {
     let col = cap.get(1).unwrap().as_str();
     let op = cap.get(2).unwrap().as_str().to_uppercase();
     let op = op.trim();
-    let val = cap.get(3).or(cap.get(4)).or(cap.get(5)).map(|m| m.as_str()).unwrap_or("");
+    let val = cap
+        .get(3)
+        .or(cap.get(4))
+        .or(cap.get(5))
+        .map(|m| m.as_str())
+        .unwrap_or("");
     let cell = row.get(col).map(String::as_str).unwrap_or("");
 
     match op {
         "IS NULL" => return cell.is_empty(),
         "IS NOT NULL" => return !cell.is_empty(),
         "LIKE" => {
-            let pattern = regex::escape(val)
-                .replace('%', ".*")
-                .replace('_', ".");
-            let re = Regex::new(&format!("(?i)^{pattern}$")).unwrap_or_else(|_| Regex::new("$^").unwrap());
+            let pattern = regex::escape(val).replace('%', ".*").replace('_', ".");
+            let re = Regex::new(&format!("(?i)^{pattern}$"))
+                .unwrap_or_else(|_| Regex::new("$^").unwrap());
             return re.is_match(cell);
         }
         _ => {}

@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  # ── 1. Prepare: update .tabularium version & generate CHANGELOG ──
+  # Validate the checked-in release metadata before building artifacts.
   prepare:
     runs-on: ubuntu-latest
     outputs:
@@ -19,32 +19,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract version from tag
+      - name: Check tag matches manifest version
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Update .tabularium version
         run: |
-          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' .tabularium > manifest.tmp.json
-          mv manifest.tmp.json .tabularium
-
-      - name: Generate CHANGELOG.md
-        id: changelog
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --tag ${{ github.ref_name }}
-        env:
-          OUTPUT: CHANGELOG.md
-          GITHUB_REPO: ${{ github.repository }}
-
-      - name: Commit version bump & changelog
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .tabularium CHANGELOG.md
-          git commit -m "chore(release): ${{ github.ref_name }}" || true
-          git push origin HEAD:main
+          version="${GITHUB_REF_NAME#v}"
+          test "$(jq -r .version .tabularium)" = "$version" || { echo '::error::Tag and manifest versions differ'; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Upload manifest as artifact
         uses: actions/upload-artifact@v4
@@ -53,14 +33,14 @@ jobs:
           path: .tabularium
           include-hidden-files: true
 
-      - name: Generate release notes (latest version only)
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --tag ${{ github.ref_name }} --latest --strip header
-        env:
-          OUTPUT: RELEASE_NOTES.md
-          GITHUB_REPO: ${{ github.repository }}
+      - name: Extract release notes
+        run: |
+          awk -v ver="${GITHUB_REF_NAME#v}" '
+            /^## \[/ { line=$0; sub(/^## \[/,"",line); sub(/\].*/,"",line); if (capturing) exit; if (line==ver) { capturing=1; found=1; next } }
+            capturing { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          test -s RELEASE_NOTES.md
 
       - name: Upload release notes as artifact
         uses: actions/upload-artifact@v4
@@ -185,6 +165,20 @@ jobs:
           Copy-Item "ui\dist\*.js" "$stage\ui\dist\"
           Compress-Archive -Path "$stage\*" -DestinationPath "google-sheets-plugin-${{ matrix.platform-label }}.zip"
 
+      - name: Smoke test binary (Unix)
+        if: runner.os != 'Windows' && !matrix.cross
+        run: |
+          response=$(echo '{"jsonrpc":"2.0","method":"initialize","id":1}' | ./staging/google-sheets-plugin)
+          echo "$response" | jq -e 'has("result") and (has("error") | not)' > /dev/null
+
+      - name: Smoke test binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $response = '{"jsonrpc":"2.0","method":"initialize","id":1}' | & ".\staging\google-sheets-plugin.exe"
+          $parsed = $response | ConvertFrom-Json
+          if ($null -ne $parsed.error -or -not ($parsed.PSObject.Properties.Name -contains 'result')) { throw 'Invalid initialize response' }
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -207,6 +201,15 @@ jobs:
         with:
           name: release-notes
 
+      - name: Detect prerelease
+        id: meta
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            echo 'prerelease=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'prerelease=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -216,3 +219,5 @@ jobs:
             artifacts/*.zip
             artifacts/.tabularium
           generate_release_notes: false
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
+          make_latest: ${{ steps.meta.outputs.prerelease == 'false' }}

@@ -55,13 +55,12 @@ pub fn access_token(client: &reqwest::blocking::Client) -> anyhow::Result<String
     }
 
     // Refresh using refresh_token
-    let refresh_token = state
-        .oauth_refresh_token
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!(
+    let refresh_token = state.oauth_refresh_token.clone().ok_or_else(|| {
+        anyhow::anyhow!(
             "OAuth access token expired and no refresh token available. \
              Re-authorize in Settings → Plugins → Google Sheets."
-        ))?;
+        )
+    })?;
     let client_id = state
         .oauth_client_id
         .clone()
