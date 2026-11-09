@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file.
 
 - Route the OAuth authorization-code exchange through the sandbox host API.
 - Wait for plugin settings writes before advancing the OAuth flow.
+- Use host theme tokens for readable OAuth fields, controls and status messages in light and dark themes.
+- Associate wizard fields with labels and distinguish opening the browser from exchanging a token.
 
 ## [0.3.0] - 2026-08-06
 

@@ -17,7 +17,7 @@ import {
   usePluginSetting,
 } from "@tabularis/plugin-api";
 import * as pluginApi from "@tabularis/plugin-api";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { PLUGIN_ID, S } from "./styles";
 
@@ -65,9 +65,13 @@ interface GoogleOAuthTokenRequest {
 
 // The guest maps this module to its restricted API object. The local type
 // keeps this companion buildable until plugin-api 0.4.0 is published.
-const exchangeGoogleOAuthToken = (pluginApi as typeof pluginApi & {
-  exchangeGoogleOAuthToken: (request: GoogleOAuthTokenRequest) => Promise<TokenResponse>;
-}).exchangeGoogleOAuthToken;
+const exchangeGoogleOAuthToken = (
+  pluginApi as typeof pluginApi & {
+    exchangeGoogleOAuthToken: (
+      request: GoogleOAuthTokenRequest,
+    ) => Promise<TokenResponse>;
+  }
+).exchangeGoogleOAuthToken;
 
 async function exchangeCode(
   clientId: string,
@@ -99,6 +103,7 @@ interface WizardProps {
 }
 
 function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
+  const fieldId = useId();
   const [clientId, setClientId] = useState<string>(
     (getSetting<string>("client_id", "") as string) || "",
   );
@@ -110,13 +115,14 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
     "credentials",
   );
   const [loading, setLoading] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
 
   const canOpenUrl =
     clientId.trim().length > 0 && clientSecret.trim().length > 0;
 
   async function handleOpenBrowser() {
-    setLoading(true);
+    setOpening(true);
     setError("");
     try {
       const trimmedClientId = clientId.trim();
@@ -129,7 +135,7 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Unknown error");
     } finally {
-      setLoading(false);
+      setOpening(false);
     }
   }
 
@@ -142,7 +148,11 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
     setLoading(true);
     setError("");
     try {
-      const data = await exchangeCode(clientId.trim(), clientSecret.trim(), code);
+      const data = await exchangeCode(
+        clientId.trim(),
+        clientSecret.trim(),
+        code,
+      );
       const expiry = Math.floor(Date.now() / 1000) + (data.expires_in ?? 3600);
       const updates: Record<string, unknown> = {
         client_id: clientId.trim(),
@@ -166,7 +176,8 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
     return (
       <div>
         <div style={S.success}>
-          ✓ Connected successfully! You can now create a Google Sheets connection.
+          ✓ Connected successfully! You can now create a Google Sheets
+          connection.
         </div>
         <div style={S.row}>
           <button style={S.btn("default")} onClick={onClose}>
@@ -183,14 +194,16 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
       : "Step 2 — Authorize and paste the code";
 
   return (
-    <div style={{ minWidth: "460px", padding: "16px", boxSizing: "border-box" }}>
+    <div
+      style={{ minWidth: "460px", padding: "16px", boxSizing: "border-box" }}
+    >
       <div style={{ marginBottom: "4px" }}>
         <div
           style={{
             fontWeight: 600,
             fontSize: "13px",
             marginBottom: "12px",
-            color: "var(--color-text-primary, #e2e8f0)",
+            color: "var(--text-primary)",
           }}
         >
           {heading}
@@ -206,9 +219,12 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
             <span style={S.codeBlock}>Desktop app</span>
           </div>
 
-          <label style={S.label}>Client ID</label>
+          <label htmlFor={`${fieldId}-client-id`} style={S.label}>
+            Client ID
+          </label>
           <input
             style={S.input}
+            id={`${fieldId}-client-id`}
             type="text"
             placeholder="123456789-abc....apps.googleusercontent.com"
             value={clientId}
@@ -216,9 +232,12 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
             autoComplete="off"
           />
 
-          <label style={S.label}>Client Secret</label>
+          <label htmlFor={`${fieldId}-client-secret`} style={S.label}>
+            Client Secret
+          </label>
           <input
             style={S.input}
+            id={`${fieldId}-client-secret`}
             type="password"
             placeholder="GOCSPX-..."
             value={clientSecret}
@@ -232,13 +251,13 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
             <button
               style={{
                 ...S.btn("primary"),
-                opacity: canOpenUrl && !loading ? 1 : 0.4,
-                cursor: canOpenUrl && !loading ? "pointer" : "not-allowed",
+                opacity: canOpenUrl && !opening ? 1 : 0.4,
+                cursor: canOpenUrl && !opening ? "pointer" : "not-allowed",
               }}
-              disabled={!canOpenUrl || loading}
+              disabled={!canOpenUrl || opening}
               onClick={handleOpenBrowser}
             >
-              {loading ? "Opening…" : "Open Authorization Page →"}
+              {opening ? "Opening…" : "Open Authorization Page →"}
             </button>
             <button style={S.btn("default")} onClick={onClose}>
               Cancel
@@ -263,10 +282,13 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
             </li>
           </ol>
 
-          <label style={S.label}>Paste redirect URL or authorization code</label>
+          <label htmlFor={`${fieldId}-code`} style={S.label}>
+            Paste redirect URL or authorization code
+          </label>
           <input
-            style={{ ...S.input, fontFamily: "monospace" }}
+            style={{ ...S.input, fontFamily: "var(--font-mono)" }}
             type="text"
+            id={`${fieldId}-code`}
             placeholder="http://127.0.0.1/?code=4/0AX4XfW...  or just the code"
             value={authCode}
             onChange={(e) => setAuthCode(e.target.value)}
@@ -280,10 +302,10 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
             <button
               style={{
                 ...S.btn("primary"),
-                opacity: loading ? 0.6 : 1,
+                opacity: opening || loading ? 0.6 : 1,
                 cursor: loading ? "not-allowed" : "pointer",
               }}
-              disabled={loading}
+              disabled={loading || opening}
               onClick={() => {
                 void handleExchange();
               }}
@@ -303,8 +325,12 @@ function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
 
           <div style={{ marginTop: "12px" }}>
             <button
-              style={{ ...S.btn("default"), fontSize: "11px", opacity: loading ? 0.6 : 1 }}
-              disabled={loading}
+              style={{
+                ...S.btn("default"),
+                fontSize: "11px",
+                opacity: opening || loading ? 0.6 : 1,
+              }}
+              disabled={opening || loading}
               onClick={handleOpenBrowser}
             >
               Re-open authorization page
@@ -372,11 +398,15 @@ const GoogleSheetsOAuth = defineSlot(
           {isConnected ? (
             <div>
               <div style={S.hint}>
-                OAuth tokens are active. The plugin will refresh them automatically.
+                OAuth tokens are active. The plugin will refresh them
+                automatically.
                 {clientId && (
                   <span>
-                    {" "}Client ID:{" "}
-                    <span style={S.codeBlock}>{clientId.slice(0, 20) + "…"}</span>
+                    {" "}
+                    Client ID:{" "}
+                    <span style={S.codeBlock}>
+                      {clientId.slice(0, 20) + "…"}
+                    </span>
                   </span>
                 )}
               </div>
