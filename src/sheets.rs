@@ -52,11 +52,7 @@ fn check_status(resp: reqwest::blocking::Response) -> anyhow::Result<reqwest::bl
     let body = resp.text().unwrap_or_default();
     let detail = serde_json::from_str::<Value>(&body)
         .ok()
-        .and_then(|v| {
-            v["error"]["message"]
-                .as_str()
-                .map(str::to_owned)
-        })
+        .and_then(|v| v["error"]["message"].as_str().map(str::to_owned))
         .unwrap_or(body);
     anyhow::bail!("{status}: {detail}");
 }
@@ -80,11 +76,7 @@ fn post_with_auth(
     Ok(())
 }
 
-fn put_with_auth(
-    client: &reqwest::blocking::Client,
-    url: &str,
-    body: Value,
-) -> anyhow::Result<()> {
+fn put_with_auth(client: &reqwest::blocking::Client, url: &str, body: Value) -> anyhow::Result<()> {
     let token = access_token(client)?;
     let resp = client.put(url).bearer_auth(&token).json(&body).send()?;
     check_status(resp)?;
@@ -104,7 +96,11 @@ pub fn get_sheet_names(spreadsheet_id: &str) -> anyhow::Result<Vec<String>> {
         .map_err(anyhow::Error::from)
         .and_then(check_status)?
         .json()?;
-    Ok(meta.sheets.into_iter().map(|s| s.properties.title).collect())
+    Ok(meta
+        .sheets
+        .into_iter()
+        .map(|s| s.properties.title)
+        .collect())
 }
 
 /// Returns (sheet_id, sheet_names) map for all sheets.
@@ -154,20 +150,13 @@ pub fn get_sheet_data(
         return Ok((vec![], vec![]));
     }
 
-    let headers: Vec<String> = resp.values[0]
-        .iter()
-        .map(|v| value_to_string(v))
-        .collect();
+    let headers: Vec<String> = resp.values[0].iter().map(value_to_string).collect();
     let data = resp.values[1..].to_vec();
     Ok((headers, data))
 }
 
 /// Appends a row to a sheet.
-pub fn append_row(
-    spreadsheet_id: &str,
-    sheet_name: &str,
-    row: Vec<String>,
-) -> anyhow::Result<()> {
+pub fn append_row(spreadsheet_id: &str, sheet_name: &str, row: Vec<String>) -> anyhow::Result<()> {
     let client = get_client();
     let encoded = urlencoded(sheet_name);
     let url = format!(

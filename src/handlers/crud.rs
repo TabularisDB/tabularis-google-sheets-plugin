@@ -35,11 +35,7 @@ pub fn insert_record(id: Value, params: &Value) -> Value {
 
     let row: Vec<String> = headers
         .iter()
-        .map(|h| {
-            data.get(h)
-                .map(value_to_string)
-                .unwrap_or_default()
-        })
+        .map(|h| data.get(h).map(value_to_string).unwrap_or_default())
         .collect();
 
     match append_row(&sid, &table, row) {
@@ -58,13 +54,19 @@ pub fn update_record(id: Value, params: &Value) -> Value {
         .get("pk_col")
         .and_then(Value::as_str)
         .unwrap_or("_row");
-    let pk_val_owned = params.get("pk_val").map(value_to_string).unwrap_or_default();
+    let pk_val_owned = params
+        .get("pk_val")
+        .map(value_to_string)
+        .unwrap_or_default();
     let column = params
         .get("col_name")
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
-    let value = params.get("new_val").map(value_to_string).unwrap_or_default();
+    let value = params
+        .get("new_val")
+        .map(value_to_string)
+        .unwrap_or_default();
 
     if pk_col != "_row" {
         return error_response(
@@ -122,7 +124,10 @@ pub fn delete_record(id: Value, params: &Value) -> Value {
         .get("pk_col")
         .and_then(Value::as_str)
         .unwrap_or("_row");
-    let pk_val_owned = params.get("pk_val").map(value_to_string).unwrap_or_default();
+    let pk_val_owned = params
+        .get("pk_val")
+        .map(value_to_string)
+        .unwrap_or_default();
 
     if pk_col != "_row" {
         return error_response(

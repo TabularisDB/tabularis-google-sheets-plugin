@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Use sandbox Google OAuth token exchange by @1-DARK
 - *(ui)* Apply host theme tokens to the Google OAuth wizard by @debba
 - Require Tabularis 0.32 for sandbox OAuth by @debba
+- Update Rust dependencies to address security advisories.
 
 ### Documentation
 
@@ -19,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 ### Miscellaneous
 
+- Validate the manifest, test Rust and UI changes, and smoke test release binaries.
 - Point manifest icon and release workflow at main after the branch rename by @debba
 - *(manifest)* Declare stable id and display name (#2) by @debba in [#2](https://github.com/TabularisDB/tabularis-google-sheets-plugin/pull/2)
 ## [0.3.0] - 2026-08-06
