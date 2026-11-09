@@ -16,12 +16,12 @@ import {
   usePluginModal,
   usePluginSetting,
 } from "@tabularis/plugin-api";
-import { useState } from "react";
+import * as pluginApi from "@tabularis/plugin-api";
+import { useId, useState } from "react";
 
 import { PLUGIN_ID, S } from "./styles";
 
 const SCOPE = "https://www.googleapis.com/auth/spreadsheets";
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const REDIRECT_URI = "http://127.0.0.1";
 
 function buildAuthUrl(clientId: string): string {
@@ -55,38 +55,41 @@ interface TokenResponse {
   expires_in?: number;
 }
 
+interface GoogleOAuthTokenRequest {
+  grant_type: "authorization_code";
+  code: string;
+  client_id: string;
+  client_secret: string;
+  redirect_uri: string;
+}
+
+// The guest maps this module to its restricted API object. The local type
+// keeps this companion buildable until plugin-api 0.4.0 is published.
+const exchangeGoogleOAuthToken = (
+  pluginApi as typeof pluginApi & {
+    exchangeGoogleOAuthToken: (
+      request: GoogleOAuthTokenRequest,
+    ) => Promise<TokenResponse>;
+  }
+).exchangeGoogleOAuthToken;
+
 async function exchangeCode(
   clientId: string,
   clientSecret: string,
   code: string,
 ): Promise<TokenResponse> {
-  const body = new URLSearchParams({
+  if (typeof exchangeGoogleOAuthToken !== "function") {
+    throw new Error(
+      "Update Tabularis to 0.32.0 or newer to use the Google Sheets OAuth flow",
+    );
+  }
+  return exchangeGoogleOAuthToken({
+    grant_type: "authorization_code",
     code,
     client_id: clientId,
     client_secret: clientSecret,
     redirect_uri: REDIRECT_URI,
-    grant_type: "authorization_code",
   });
-  const resp = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  });
-  if (!resp.ok) {
-    const text = await resp.text();
-    let msg = "Token exchange failed";
-    try {
-      const json = JSON.parse(text) as {
-        error_description?: string;
-        error?: string;
-      };
-      msg = json.error_description || json.error || msg;
-    } catch {
-      msg = text || msg;
-    }
-    throw new Error(msg);
-  }
-  return resp.json() as Promise<TokenResponse>;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,12 +98,12 @@ async function exchangeCode(
 
 interface WizardProps {
   getSetting: <T = unknown>(key: string, defaultValue?: T) => T;
-  setSetting: (key: string, value: unknown) => void;
-  setSettings: (updates: Record<string, unknown>) => void;
+  setSettings: (updates: Record<string, unknown>) => Promise<void> | void;
   onClose: () => void;
 }
 
-function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardProps) {
+function OAuthWizard({ getSetting, setSettings, onClose }: WizardProps) {
+  const fieldId = useId();
   const [clientId, setClientId] = useState<string>(
     (getSetting<string>("client_id", "") as string) || "",
   );
@@ -112,18 +115,28 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
     "credentials",
   );
   const [loading, setLoading] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
 
   const canOpenUrl =
     clientId.trim().length > 0 && clientSecret.trim().length > 0;
 
-  function handleOpenBrowser() {
-    const url = buildAuthUrl(clientId.trim());
-    setSetting("client_id", clientId.trim());
-    setSetting("client_secret", clientSecret.trim());
-    openUrl(url);
-    setStep("waiting");
+  async function handleOpenBrowser() {
+    setOpening(true);
     setError("");
+    try {
+      const trimmedClientId = clientId.trim();
+      await setSettings({
+        client_id: trimmedClientId,
+        client_secret: clientSecret.trim(),
+      });
+      await openUrl(buildAuthUrl(trimmedClientId));
+      setStep("waiting");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Unknown error");
+    } finally {
+      setOpening(false);
+    }
   }
 
   async function handleExchange() {
@@ -135,7 +148,11 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
     setLoading(true);
     setError("");
     try {
-      const data = await exchangeCode(clientId.trim(), clientSecret.trim(), code);
+      const data = await exchangeCode(
+        clientId.trim(),
+        clientSecret.trim(),
+        code,
+      );
       const expiry = Math.floor(Date.now() / 1000) + (data.expires_in ?? 3600);
       const updates: Record<string, unknown> = {
         client_id: clientId.trim(),
@@ -146,7 +163,7 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
       if (data.refresh_token) {
         updates.refresh_token = data.refresh_token;
       }
-      setSettings(updates);
+      await setSettings(updates);
       setStep("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -159,7 +176,8 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
     return (
       <div>
         <div style={S.success}>
-          ✓ Connected successfully! You can now create a Google Sheets connection.
+          ✓ Connected successfully! You can now create a Google Sheets
+          connection.
         </div>
         <div style={S.row}>
           <button style={S.btn("default")} onClick={onClose}>
@@ -176,14 +194,16 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
       : "Step 2 — Authorize and paste the code";
 
   return (
-    <div style={{ minWidth: "460px", padding: "16px", boxSizing: "border-box" }}>
+    <div
+      style={{ minWidth: "460px", padding: "16px", boxSizing: "border-box" }}
+    >
       <div style={{ marginBottom: "4px" }}>
         <div
           style={{
             fontWeight: 600,
             fontSize: "13px",
             marginBottom: "12px",
-            color: "var(--color-text-primary, #e2e8f0)",
+            color: "var(--text-primary)",
           }}
         >
           {heading}
@@ -199,9 +219,12 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
             <span style={S.codeBlock}>Desktop app</span>
           </div>
 
-          <label style={S.label}>Client ID</label>
+          <label htmlFor={`${fieldId}-client-id`} style={S.label}>
+            Client ID
+          </label>
           <input
             style={S.input}
+            id={`${fieldId}-client-id`}
             type="text"
             placeholder="123456789-abc....apps.googleusercontent.com"
             value={clientId}
@@ -209,9 +232,12 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
             autoComplete="off"
           />
 
-          <label style={S.label}>Client Secret</label>
+          <label htmlFor={`${fieldId}-client-secret`} style={S.label}>
+            Client Secret
+          </label>
           <input
             style={S.input}
+            id={`${fieldId}-client-secret`}
             type="password"
             placeholder="GOCSPX-..."
             value={clientSecret}
@@ -225,13 +251,13 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
             <button
               style={{
                 ...S.btn("primary"),
-                opacity: canOpenUrl ? 1 : 0.4,
-                cursor: canOpenUrl ? "pointer" : "not-allowed",
+                opacity: canOpenUrl && !opening ? 1 : 0.4,
+                cursor: canOpenUrl && !opening ? "pointer" : "not-allowed",
               }}
-              disabled={!canOpenUrl}
+              disabled={!canOpenUrl || opening}
               onClick={handleOpenBrowser}
             >
-              Open Authorization Page →
+              {opening ? "Opening…" : "Open Authorization Page →"}
             </button>
             <button style={S.btn("default")} onClick={onClose}>
               Cancel
@@ -256,10 +282,13 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
             </li>
           </ol>
 
-          <label style={S.label}>Paste redirect URL or authorization code</label>
+          <label htmlFor={`${fieldId}-code`} style={S.label}>
+            Paste redirect URL or authorization code
+          </label>
           <input
-            style={{ ...S.input, fontFamily: "monospace" }}
+            style={{ ...S.input, fontFamily: "var(--font-mono)" }}
             type="text"
+            id={`${fieldId}-code`}
             placeholder="http://127.0.0.1/?code=4/0AX4XfW...  or just the code"
             value={authCode}
             onChange={(e) => setAuthCode(e.target.value)}
@@ -273,10 +302,10 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
             <button
               style={{
                 ...S.btn("primary"),
-                opacity: loading ? 0.6 : 1,
+                opacity: opening || loading ? 0.6 : 1,
                 cursor: loading ? "not-allowed" : "pointer",
               }}
-              disabled={loading}
+              disabled={loading || opening}
               onClick={() => {
                 void handleExchange();
               }}
@@ -296,7 +325,12 @@ function OAuthWizard({ getSetting, setSetting, setSettings, onClose }: WizardPro
 
           <div style={{ marginTop: "12px" }}>
             <button
-              style={{ ...S.btn("default"), fontSize: "11px" }}
+              style={{
+                ...S.btn("default"),
+                fontSize: "11px",
+                opacity: opening || loading ? 0.6 : 1,
+              }}
+              disabled={opening || loading}
               onClick={handleOpenBrowser}
             >
               Re-open authorization page
@@ -317,7 +351,7 @@ const GoogleSheetsOAuth = defineSlot(
   ({ context }) => {
     if (context.targetPluginId !== PLUGIN_ID) return null;
 
-    const { getSetting, setSetting, setSettings } = usePluginSetting(PLUGIN_ID);
+    const { getSetting, setSettings } = usePluginSetting(PLUGIN_ID);
     const { openModal, closeModal } = usePluginModal();
 
     const refresh = getSetting<string>("refresh_token", "") as string;
@@ -332,7 +366,6 @@ const GoogleSheetsOAuth = defineSlot(
         content: (
           <OAuthWizard
             getSetting={getSetting}
-            setSetting={setSetting}
             setSettings={setSettings}
             onClose={closeModal}
           />
@@ -340,12 +373,16 @@ const GoogleSheetsOAuth = defineSlot(
       });
     }
 
-    function handleDisconnect() {
-      setSettings({
-        access_token: "",
-        refresh_token: "",
-        token_expiry: 0,
-      });
+    async function handleDisconnect() {
+      try {
+        await setSettings({
+          access_token: "",
+          refresh_token: "",
+          token_expiry: 0,
+        });
+      } catch (failure) {
+        console.error("Failed to disconnect Google account", failure);
+      }
     }
 
     return (
@@ -361,11 +398,15 @@ const GoogleSheetsOAuth = defineSlot(
           {isConnected ? (
             <div>
               <div style={S.hint}>
-                OAuth tokens are active. The plugin will refresh them automatically.
+                OAuth tokens are active. The plugin will refresh them
+                automatically.
                 {clientId && (
                   <span>
-                    {" "}Client ID:{" "}
-                    <span style={S.codeBlock}>{clientId.slice(0, 20) + "…"}</span>
+                    {" "}
+                    Client ID:{" "}
+                    <span style={S.codeBlock}>
+                      {clientId.slice(0, 20) + "…"}
+                    </span>
                   </span>
                 )}
               </div>
