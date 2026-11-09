@@ -2,16 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.1] - Unreleased
+## [0.3.1] - 2026-11-09
 
 ### Bug Fixes
 
-- Require Tabularis 0.32.0 or newer for the sandboxed OAuth flow.
-- Route the OAuth authorization-code exchange through the sandbox host API.
-- Wait for plugin settings writes before advancing the OAuth flow.
-- Use host theme tokens for readable OAuth fields, controls and status messages in light and dark themes.
-- Associate wizard fields with labels and distinguish opening the browser from exchanging a token.
+- *(manifest)* Icon URL points at master, the repo's default branch by @debba
+- Route Google Sheets OAuth through sandbox host API by @1-DARK
+- Use sandbox Google OAuth token exchange by @1-DARK
+- *(ui)* Apply host theme tokens to the Google OAuth wizard by @debba
+- Require Tabularis 0.32 for sandbox OAuth by @debba
 
+### Documentation
+
+- Update Tabularis logo URL to packages/web-ui/public by @debba
+- Use Tabularis banner and add native support banner in README by @debba
+
+### Miscellaneous
+
+- Point manifest icon and release workflow at main after the branch rename by @debba
+- *(manifest)* Declare stable id and display name (#2) by @debba in [#2](https://github.com/TabularisDB/tabularis-google-sheets-plugin/pull/2)
 ## [0.3.0] - 2026-08-06
 
 ### Bug Fixes
