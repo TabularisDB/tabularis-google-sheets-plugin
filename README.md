@@ -94,7 +94,7 @@ The first time you open the plugin settings you'll see a **Connect with Google**
 
 The UI extension sends the authorization code to Tabularis through
 `exchangeGoogleOAuthToken`; it does not make a network request from the plugin
-frame. This requires a Tabularis host that exposes plugin API 0.3.0 or newer.
+frame. This version requires Tabularis 0.32.0 or newer.
 
 From that point on:
 

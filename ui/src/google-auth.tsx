@@ -80,7 +80,7 @@ async function exchangeCode(
 ): Promise<TokenResponse> {
   if (typeof exchangeGoogleOAuthToken !== "function") {
     throw new Error(
-      "Update Tabularis to 0.29.0 or newer to use the Google Sheets OAuth flow",
+      "Update Tabularis to 0.32.0 or newer to use the Google Sheets OAuth flow",
     );
   }
   return exchangeGoogleOAuthToken({

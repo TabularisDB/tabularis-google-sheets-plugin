@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Bug Fixes
 
+- Require Tabularis 0.32.0 or newer for the sandboxed OAuth flow.
 - Route the OAuth authorization-code exchange through the sandbox host API.
 - Wait for plugin settings writes before advancing the OAuth flow.
 - Use host theme tokens for readable OAuth fields, controls and status messages in light and dark themes.
